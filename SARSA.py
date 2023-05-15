@@ -1,0 +1,76 @@
+import numpy as np
+import random
+from numpy import savetxt
+import sys
+import matplotlib.pyplot as plt
+
+#
+# This class implements the Q-Learning algorithm.
+# We can use this implementation to solve Toy text environments from Gym project. 
+#
+
+class Sarsa:
+
+    def __init__(self, env, alpha, gamma, epsilon, epsilon_min, epsilon_dec, episodes):
+        self.env = env
+        self.q_table = np.zeros([32*11*2, env.action_space.n])
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.epsilon_min = epsilon_min
+        self.epsilon_dec = epsilon_dec
+        self.episodes = episodes
+
+    def get_state_index(self, state):
+        return state[0] + 32*state[1] + 32*11*state[2]
+
+    def select_action(self, state):
+        rv = random.uniform(0, 1)
+        if rv < self.epsilon:
+            return self.env.action_space.sample() # Explore action space
+        return np.argmax(self.q_table[self.get_state_index(state)]) # Exploit learned values
+
+    def train(self, filename, plotFile):
+        # actions_per_episode = []
+        rewards_per_episode = []
+        for i in range(1, self.episodes+1):
+            (state, _) = self.env.reset()
+            rewards = 0
+            done = False
+            # actions = 0
+            action = self.select_action(state)
+            while not done:
+                
+                next_state, reward, done, truncated, _ = self.env.step(action) 
+                next_action = self.select_action(next_state)
+                # Adjust Q value for current state
+                old_value = self.q_table[self.get_state_index(state), action] #pegar o valor na q-table para a combinacao action e state
+                
+                new_value = old_value + self.alpha * (reward + self.gamma * self.q_table[self.get_state_index(next_state), next_action] - old_value) #calcula o novo valor
+                self.q_table[self.get_state_index(state), action] = new_value
+                # atualiza para o novo estado
+                state = next_state
+                action = next_action
+                # actions=actions+1
+                rewards=rewards+reward
+
+            # actions_per_episode.append(actions)
+            rewards_per_episode.append(rewards)
+            if i % 100 == 0:
+                sys.stdout.write("Episodes: " + str(i) +'\r')
+                sys.stdout.flush()
+            
+            if self.epsilon > self.epsilon_min:
+                self.epsilon = self.epsilon * self.epsilon_dec
+
+        savetxt(filename, self.q_table, delimiter=',')
+        if (plotFile is not None): self.plotactions(plotFile, rewards_per_episode)
+        return self.q_table
+
+    def plotactions(self, plotFile, actions_per_episode):
+        plt.plot(actions_per_episode)
+        plt.xlabel('Episodes')
+        plt.ylabel('# Rewards')
+        plt.title('# Rewards vs Episodes')
+        plt.savefig(plotFile+".jpg")     
+        plt.close()
